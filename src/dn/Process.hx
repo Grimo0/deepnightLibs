@@ -12,6 +12,9 @@ class Process {
 	static var UNIQ_ID = 0;
 	static var ROOTS : Array<Process> = [];
 
+	/** If TRUE, each Process.onResize() will be called *once* at the end of the frame **/
+	static var RESIZE_REQUESTED = true;
+
 	public var uniqId : Int;
 	/** Elapsed frames from the client start **/
 	public var ftime(default, null) : Float; // elapsed frames
@@ -44,6 +47,9 @@ class Process {
 	/** Elapsed frames not affected by time multiplier **/
 	public var uftime(default, null) : Float;
 	var baseTimeMul = 1.0;
+
+	/** Set this to TRUE if you want this Process to ignore any existing time multipliers, including the ones from parent Processes. For example, a UI component will probably want to ignore time multipliers, even if the game is running in slow-motion. **/
+	var ignoreTimeMultipliers = false;
 
 	@:noCompletion
 	@:deprecated("Use baseTimeMul instead")
@@ -98,6 +104,8 @@ class Process {
 			ROOTS.push(this);
 		else
 			parent.addChild(this);
+
+		resizeAll(false);
 	}
 
 	public function init(){
@@ -121,6 +129,7 @@ class Process {
 	var _initOnceDone = false;
 	/** This special init method is only called once during next frame: call will happen *after* the constructor call and *before* any update. **/
 	function initOnceBeforeUpdate() {}
+
 
 	#if( heaps || flash )
 	/** Init graphic context **/
@@ -147,6 +156,21 @@ class Process {
 		#end
 	}
 	#end
+
+
+	#if heaps
+	/**
+		Init graphic context without adding it anywhere
+	**/
+	public function createRootInNoContext() {
+		if( root!=null )
+			throw this+": root already created!";
+
+		root = new h2d.Layers();
+		root.name = getDisplayName();
+	}
+	#end
+
 
 	#if heaps
 	/** Init graphic context in specified `h2d.Layers` **/
@@ -341,7 +365,7 @@ class Process {
 
 	/** Get "total" time multiplier, including parent processes **/
 	function getComputedTimeMultiplier() : Float {
-		return M.fmax(0, baseTimeMul * ( parent==null ? 1 : parent.getComputedTimeMultiplier() ) );
+		return ignoreTimeMultipliers ? 1.0 : M.fmax(0, baseTimeMul * ( parent==null ? 1 : parent.getComputedTimeMultiplier() ) );
 	}
 
 
@@ -620,12 +644,23 @@ class Process {
 		for (p in ROOTS)
 			_doPostUpdate(p);
 
+		if( RESIZE_REQUESTED ) {
+			RESIZE_REQUESTED = false;
+			for(p in ROOTS)
+				_resizeProcess(p);
+		}
+
 		_garbageCollector(ROOTS);
 	}
 
-	public static function resizeAll() {
-		for ( p in ROOTS )
-			_resizeProcess(p);
+	/** Request a onResize() call for all processes. If `immediately` is false (default), the call will only happen **once** and **at the end** of current frame. **/
+	public static function resizeAll(immediately=false) {
+		if( immediately ) {
+			for ( p in ROOTS )
+				_resizeProcess(p);
+		}
+		else
+			RESIZE_REQUESTED = true;
 	}
 
 

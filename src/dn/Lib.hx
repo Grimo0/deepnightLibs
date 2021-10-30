@@ -21,10 +21,27 @@ class Lib {
 	public static function println(v:Dynamic) {
 		#if js
 			js.html.Console.log( Std.string(v) );
+		#elseif neko
+			neko.Lib.println( Std.string(v) );
 		#elseif flash
 			trace( Std.string(v) );
 		#elseif sys
 			Sys.println( Std.string(v) );
+		#else
+			trace( Std.string(v) );
+		#end
+	}
+
+	/** Print a string to standard output without newline character, if any. Might not be supported everywhere. **/
+	public static function print(v:Dynamic) {
+		#if js
+			js.html.Console.log( Std.string(v) );
+		#elseif neko
+			neko.Lib.print( Std.string(v) );
+		#elseif flash
+			trace( Std.string(v) );
+		#elseif sys
+			Sys.print( Std.string(v) );
 		#else
 			trace( Std.string(v) );
 		#end
@@ -74,6 +91,21 @@ class Lib {
 		while (str.length<zeros)
 			str="0"+str;
 		return str;
+	}
+
+	/**
+		Trim (left and right) and any whitespace character (space, tab, end of line, etc.)
+	**/
+	static var L_WHITESPACE_TRIM = ~/^\s*/gi;
+	static var R_WHITESPACE_TRIM = ~/\s*$/gi;
+	public static inline function wtrim(str:String) {
+		if( str==null )
+			return "";
+		else {
+			str = L_WHITESPACE_TRIM.replace(str, "");
+			str = R_WHITESPACE_TRIM.replace(str, "");
+			return str;
+		}
 	}
 
 	public static inline function repeatChar(c:String, n:Int) {
@@ -673,6 +705,11 @@ class Lib {
 		CiAssert.equals( safeEscape(' \"hello\" ', '"'),	' \\"hello\\" ');
 		CiAssert.equals( safeEscape(' "hello" ', '"'),		' \\"hello\\" ');
 		CiAssert.equals( safeEscape(' "hello" \"world" ', '"'), ' \\"hello\\" \\"world\\" ');
+
+		CiAssert.equals( wtrim('  \thello  \t  \r\n'), 'hello' );
+		CiAssert.equals( wtrim(' \t '), '' );
+		CiAssert.equals( wtrim(''), '' );
+		CiAssert.equals( wtrim(null), '' );
 	}
 
 	#end // End of "if macro"
