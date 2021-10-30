@@ -206,7 +206,7 @@ class GetText {
 
 		// In-text variables
 		if( vars!=null )
-			for(k in glect.fields(vars))
+			for(k in Reflect.fields(vars))
 				str = StringTools.replace(str, '::$k::', Std.string( Reflect.field(vars,k) ));
 
 		// Strip notes from output
@@ -341,7 +341,7 @@ class GetText {
 	 *******************************************************************************/
 
 	#if( sys && !macro )
-	static var SRC_REG = ~/\._\(\s*["']((\\["']|[^"'])+)["']/i
+	static var SRC_REG = ~/\._\(\s*["']((\\["']|[^"'])+)["']/i;
 	/**
 		Parse HX files
 	**/
