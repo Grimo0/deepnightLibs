@@ -26,20 +26,38 @@ enum PadButton {
 }
 
 
+
 /**
 	Controller wrapper for `hxd.Pad` and `hxd.Key` which provides a *much* more convenient binding system, to make keyboard/gamepad usage fully transparent.
 
-	**Usage:**
+	For example, you may bind analog controls (ie. pad left stick) with keyboard keys, or have as many bindings as you want per game action.
+
+	**Example:**
 	```haxe
 	enum MyGameActions {
 		MoveX;
+		MoveY;
 		Jump;
 		Attack;
 	}
-	var gi = new Controller(MyGameActions);
-	TODO
-	```
+	var ctrl = new Controller(MyGameActions);
+	ctrl.bindKeyboardAsStick(MoveX,MoveY, hxd.Key.UP, hxd.Key.LEFT, hxd.Key.DOWN, hxd.Key.RIGHT);
+	ctrl.bindKeyboardAsStick(MoveX,MoveY, hxd.Key.W, hxd.Key.A, hxd.Key.S, hxd.Key.D);
+	ctrl.bindKeyboard(Jump, hxd.Key.SPACE);
+	ctrl.bindKeyboard(Attack, [hxd.Key.X, hxd.Key.CTRL, hxd.Key.W, hxd.Key.Z] );
 
+	ctrl.bindPadLStick(MoveX,MoveY);
+	ctrl.bindPadButtonsAsStick(MoveX,MoveY, DPAD_UP, DPAD_LEFT, DPAD_DOWN, DPAD_RIGHT);
+	ctrl.bindPad(Jump, A);
+	ctrl.bindPad(Attack, [X,RT,LT]);
+
+	var access = ctrl.createAccess();
+	trace( access.isPressed(Jump) );
+	trace( access.getAnalogAngle(MoveX,MoveY) );
+	trace( access.isPositive(MoveY) );
+
+	var debug = access.createDebugger(myParentProcess);
+	```
 **/
 @:allow(dn.heaps.input.ControllerAccess)
 class Controller<T:EnumValue> {
@@ -72,8 +90,12 @@ class Controller<T:EnumValue> {
 	var destroyed = false;
 	var enumMapping : Map<PadButton,Int> = new Map();
 	var exclusive : Null<ControllerAccess<T>>;
+	var globalDeadZone = 0.1;
 
 
+	/**
+		Create a Controller that will bind keyboard or gamepad inputs with "actions" represented by the values of the `actionsEnum` parameter.
+	**/
 	public function new(actionsEnum:Enum<T>) {
 		this.actionsEnum = actionsEnum;
 		waitForPad();
@@ -174,6 +196,7 @@ class Controller<T:EnumValue> {
 
 	function _onPadConnected(p:hxd.Pad) {
 		pad = p;
+		pad.axisDeadZone = globalDeadZone;
 		updateEnumMapping();
 		pad.onDisconnect = _onPadDisconnected;
 
@@ -264,12 +287,12 @@ class Controller<T:EnumValue> {
 		_bindPadButtonsAsStick(yAction, false, up, down);
 	}
 
-	public inline function bindPadButtonsAsStickX(action:T, negative:PadButton, positive:PadButton, invert=false) {
-		_bindPadButtonsAsStick(action, true, negative, positive, invert);
+	public inline function bindPadButtonsAsStickX(action:T, negativeKey:PadButton, positiveKey:PadButton, invert=false) {
+		_bindPadButtonsAsStick(action, true, negativeKey, positiveKey, invert);
 	}
 
-	public inline function bindPadButtonsAsStickY(action:T, negative:PadButton, positive:PadButton, invert=false) {
-		_bindPadButtonsAsStick(action, false, negative, positive, invert);
+	public inline function bindPadButtonsAsStickY(action:T, negativeKey:PadButton, positiveKey:PadButton, invert=false) {
+		_bindPadButtonsAsStick(action, false, negativeKey, positiveKey, invert);
 	}
 
 
@@ -280,16 +303,15 @@ class Controller<T:EnumValue> {
 	}
 
 
-	public inline function bindKeyboardAsStickX(action:T, negative:Int, positive:Int, invert=false) {
-		_bindKeyboardAsStick(action, true, negative, positive, invert);
+	public inline function bindKeyboardAsStickX(action:T, negativeKey:Int, positiveKey:Int, invert=false) {
+		_bindKeyboardAsStick(action, true, negativeKey, positiveKey, invert);
 	}
 
-	public inline function bindKeyboardAsStickY(action:T, negative:Int, positive:Int, invert=false) {
-		_bindKeyboardAsStick(action, false, negative, positive, invert);
+	public inline function bindKeyboardAsStickY(action:T, negativeKey:Int, positiveKey:Int, invert=false) {
+		_bindKeyboardAsStick(action, false, negativeKey, positiveKey, invert);
 	}
 
-
-	function _bindKeyboardAsStick(action:T, isXaxis:Bool, negative:Int, positive:Int, invert=false) {
+	function _bindKeyboardAsStick(action:T, isXaxis:Bool, negativeKey:Int, positiveKey:Int, invert=false) {
 		if( destroyed )
 			return;
 
@@ -298,13 +320,13 @@ class Controller<T:EnumValue> {
 		var b = new InputBinding(this,action);
 		bindings.get(action).push(b);
 		b.isX = isXaxis;
-		b.kbNeg = negative;
-		b.kbPos = positive;
+		b.kbNeg = negativeKey;
+		b.kbPos = positiveKey;
 		b.invert = invert;
 	}
 
 
-	function _bindPadButtonsAsStick(action:T, isXaxis:Bool, negative:PadButton, positive:PadButton, invert=false) {
+	function _bindPadButtonsAsStick(action:T, isXaxis:Bool, negativeKey:PadButton, positiveKey:PadButton, invert=false) {
 		if( destroyed )
 			return;
 
@@ -314,8 +336,8 @@ class Controller<T:EnumValue> {
 		bindings.get(action).push(b);
 		b.isLStick = true;
 		b.isX = isXaxis;
-		b.padNeg = negative;
-		b.padPos = positive;
+		b.padNeg = negativeKey;
+		b.padPos = positiveKey;
 		b.invert = invert;
 	}
 
@@ -362,6 +384,14 @@ class Controller<T:EnumValue> {
 			bindings.get(action).push(b);
 		}
 	}
+
+
+	/**
+		Change dead-zone ratio for all Pad sticks.
+	**/
+	public function setGlobalAxisDeadZone(dz:Float) {
+		pad.axisDeadZone = globalDeadZone = M.fclamp(dz, 0, 1);
+	}
 }
 
 
@@ -391,6 +421,19 @@ class InputBinding<T:EnumValue> {
 	public function new(i:Controller<T>, a:T) {
 		input = i;
 		action = a;
+	}
+
+	@:keep
+	public function toString() {
+		var all = [];
+		if( isLStick && padPos==null ) all.push( "LSTICK" + (isX?"_X":"_Y") + (invert?"-":"+") );
+		if( isRStick && padPos==null ) all.push("RSTICK");
+		if( padNeg!=null ) all.push( Std.string(padNeg) );
+		if( padPos!=null ) all.push( Std.string(padPos) );
+		if( padButton!=null ) all.push( Std.string(padButton) );
+		if( kbNeg>=0 ) all.push( Key.getKeyName(kbNeg) );
+		if( kbPos>=0 && kbNeg!=kbPos ) all.push( Key.getKeyName(kbPos) );
+		return all.join("/");
 	}
 
 	public inline function getValue(pad:hxd.Pad) : Float {
