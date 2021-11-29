@@ -14,8 +14,10 @@ class ControllerAccess<T:EnumValue> {
 	var destroyed(get,never) : Bool;
 	var bindings(get,never) : Map<T, Array< InputBinding<T> >>;
 	var pad(get,never) : hxd.Pad;
-	var locked = false;
+	var lockedUntilS = -1.;
 	var holdTimeS : Map<T,Float> = new Map();
+	var autoFireFirstDone : Map<T,Bool> = new Map();
+	var autoFireNextS : Map<T,Float> = new Map();
 
 	@:allow(dn.heaps.input.Controller)
 	function new(m:Controller<T>) {
@@ -55,7 +57,10 @@ class ControllerAccess<T:EnumValue> {
 		- another Access must not have taken "exclusivity".
 	**/
 	public function isActive() {
-		return !destroyed && !locked && !lockCondition() && ( input.exclusive==null || input.exclusive==this );
+		return !destroyed
+			&& ( lockedUntilS<0 || haxe.Timer.stamp()>=lockedUntilS )
+			&& !lockCondition()
+			&& ( input.exclusive==null || input.exclusive==this );
 	}
 
 	/**
@@ -168,6 +173,7 @@ class ControllerAccess<T:EnumValue> {
 		return false;
 	}
 
+
 	/**
 		Return TRUE if given action Enum is "held down" for more than `seconds` seconds.
 		Note: "down" for a digital binding means the button/key is pushed. For an analog binding, this means it is pushed *beyond* a specific threshold.
@@ -209,6 +215,75 @@ class ControllerAccess<T:EnumValue> {
 
 
 	/**
+		Return TRUE if given action is "pressed", and this will repeatedly return TRUE, just like a keyboard key that is held down for an extended period of time.
+		@param firstDelayS Delay in seconds after the first press to start firing other presses.
+		@param subsequentDelayS Delay in seconds between presses after the first one.
+	**/
+	public inline function isPressedAutoFire(action:T, firstDelayS=0.28, subsequentDelayS=0.07) {
+		if( !isDown(action) ) {
+			autoFireNextS.set(action, 0);
+			autoFireFirstDone.remove(action);
+			return false;
+		}
+		else {
+			var now = haxe.Timer.stamp();
+			if( !autoFireNextS.exists(action) || now>=autoFireNextS.get(action) ) {
+				autoFireNextS.set(action, now + ( !autoFireFirstDone.exists(action) ? firstDelayS : subsequentDelayS ));
+				autoFireFirstDone.set(action, true);
+				return true;
+			}
+			else
+				return false;
+		}
+	}
+
+
+
+	/**
+		Return TRUE if given action Enum has a negative value.
+		NOTE: Only works with Analog bindings (ie. pad stick or its corresponding keyboard bindings).
+
+		@param threshold If provided, this will be an additional threshold to check against, like the "dead-zone" factor of the Controller.
+	**/
+	public inline function isNegative(action:T, threshold=0.) {
+		return getAnalogValue(action) < -M.fabs(threshold);
+	}
+
+
+	/**
+		Return TRUE if given action Enum has a positive value.
+		NOTE: Only works with Analog bindings (ie. pad stick or its corresponding keyboard bindings).
+
+		@param threshold If provided, this will be an additional threshold to check against, like the "dead-zone" factor of the Controller.
+	**/
+	public inline function isPositive(action:T, threshold=0.) {
+		return getAnalogValue(action) > M.fabs(threshold);
+	}
+
+
+	/**
+		Return TRUE if any **button** of the pad is pressed (doesn't apply to stick or dpad)
+	**/
+	public inline function anyPadButtonPressed() {
+		return isPadPressed(A) || isPadPressed(B) || isPadPressed(X) || isPadPressed(Y)
+			|| isPadPressed(LT) || isPadPressed(RT)
+			|| isPadPressed(LB) || isPadPressed(RB)
+			|| isPadPressed(START) || isPadPressed(SELECT);
+	}
+
+
+	/**
+		Return TRUE if any **button** of the pad is down (doesn't apply to stick or dpad)
+	**/
+	public inline function anyPadButtonDown() {
+		return isPadDown(A) || isPadDown(B) || isPadDown(X) || isPadDown(Y)
+			|| isPadDown(LT) || isPadDown(RT)
+			|| isPadDown(LB) || isPadDown(RB)
+			|| isPadDown(START) || isPadDown(SELECT);
+	}
+
+
+	/**
 		Directly check if a keyboard key is pushed.
 	**/
 	public inline function isKeyboardDown(k:Int) {
@@ -244,22 +319,35 @@ class ControllerAccess<T:EnumValue> {
 	}
 
 	/**
-		This method can be re-assigned. The function must return TRUE if this Access should be marked as "locked", FALSE otherwise. A locked Access will stop checking for inputs.
+		This method is meant be re-assigned. The function should either return TRUE if this Access should be marked as "locked", FALSE otherwise. A locked Access will stop checking for inputs.
 	**/
 	public dynamic function lockCondition() return false;
 
-	public inline function lock() {
-		locked = true;
+	/**
+		Lock controller for specificed duration (in seconds), which defaults to "long enough to be considered as infinite".
+	**/
+	public inline function lock(durationSeconds=999999.) {
+		lockedUntilS = haxe.Timer.stamp() + durationSeconds;
 	}
 
+	/**
+		Remove previous locked status from `lock()` call. This doesn't remove the potential lock from `lockCondition()`.
+	**/
 	public inline function unlock() {
-		locked = false;
+		lockedUntilS = -1;
 	}
 
+
+	/**
+		Take exclusivity over all other `ControllerAccess` (they will not receive any input while this access has exclusivity)
+	**/
 	public inline function takeExclusivity() {
 		input.makeExclusive(this);
 	}
 
+	/**
+		Release current exclusivity (even if it wasn't taken by this access)
+	**/
 	public inline function releaseExclusivity() {
 		input.releaseExclusivity();
 	}
