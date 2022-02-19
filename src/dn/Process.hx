@@ -602,14 +602,18 @@ class Process {
 
 		// Tools
 		p.delayer.destroy();
+		p.udelayer.destroy();
 		p.cd.destroy();
+		p.ucd.destroy();
 		p.tw.destroy();
 
 		// Clean up
 		p.parent = null;
 		p.children = null;
 		p.delayer = null;
+		p.udelayer = null;
 		p.cd = null;
+		p.ucd = null;
 		p.tw = null;
 		#if( heaps || h3d )
 		p.root = null;
