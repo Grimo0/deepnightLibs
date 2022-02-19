@@ -88,6 +88,7 @@ class Atlas {
 
 		for (group in contents)
 		for (frame in group) {
+			if (frame == null) continue;
 			var tex  = frame.t.getTexture();
 			var page = pageMap.get(tex);
 			if (page == null) {
@@ -159,6 +160,7 @@ class Atlas {
 				if( k.indexOf("/")>=0 ) k = k.substr( k.lastIndexOf("/")+1 );
 				for (i in 0...content.length) {
 					var e = content[i];
+					if (e == null) continue;
 					var page = pageMap.get(e.t.getTexture());
 					lib.sliceCustom(
 						k, page, i,
