@@ -725,11 +725,14 @@ class GetText {
 						id += " "+line.id;
 					id += " ("+cname+")";
 					if( col.length == 0 ) {
-						var e = new PoEntry(Reflect.field(line,cname));
-						all.push(e);
-						e.addComment(globalComment);
-						e.references.push(idx+"/#"+i+"."+cname);
-						n++;
+						var eStr = Reflect.field(line,cname);
+						if (eStr != null) {
+							var e = new PoEntry(eStr);
+							all.push(e);
+							e.addComment(globalComment);
+							e.references.push(idx+"/#"+i+"."+cname);
+							n++;
+						}
 					}
 					else
 						_exploreSheet( idx+"/#"+i+"."+cname, id, Reflect.field(line,cname), [col] );
