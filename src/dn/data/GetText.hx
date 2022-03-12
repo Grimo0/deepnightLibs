@@ -720,22 +720,23 @@ class GetText {
 				for( col in columns ){
 					var col = col.copy();
 					var cname = col.shift();
-					var id = id;
+					var lineId = id;
 					if( line.id != null )
-						id += " "+line.id;
-					id += " ("+cname+")";
+						lineId += " "+line.id;
+					lineId += " ("+cname+")";
 					if( col.length == 0 ) {
 						var eStr = Reflect.field(line,cname);
 						if (eStr != null) {
 							var e = new PoEntry(eStr);
 							all.push(e);
 							e.addComment(globalComment);
+							e.addComment(id);
 							e.references.push(idx+"/#"+i+"."+cname);
 							n++;
 						}
 					}
 					else
-						_exploreSheet( idx+"/#"+i+"."+cname, id, Reflect.field(line,cname), [col] );
+						_exploreSheet( idx+"/#"+i+"."+cname, lineId, Reflect.field(line,cname), [col] );
 				}
 				i++;
 			}
@@ -825,11 +826,11 @@ class GetText {
 
 			// Translator note
 			if( e.translatorNote!=null )
-				lines.push('#. ${e.translatorNote}');
+				lines.push('# . ${e.translatorNote}');
 
 			// References
 			for(r in e.references)
-				lines.push('#: "$r"'); // TODO fix relative paths when POT is saved in a sub dir
+				lines.push('# : "$r"'); // TODO fix relative paths when POT is saved in a sub dir
 
 			// Context disambiguation
 			if( e.contextDisamb!=null )
@@ -951,7 +952,7 @@ class PoEntry {
 	}
 
 	public function addComment(str:String) {
-		if( str!=null )
+		if( str!=null && str.length > 0)
 			if( comment==null )
 				comment = str;
 			else if( comment.indexOf(str)<0 )
