@@ -7,53 +7,6 @@ import hxd.res.Sound;
 #end
 
 
-
-// --- GLOBAL PLAY GROUP ------------------------------------------------------
-#if !macro
-private class GlobalGroup {
-	var id : Int;
-	var volume : Float;
-
-	/** Currently associated Heaps SoundGroup **/
-	public var soundGroup(default,null) : SoundGroup;
-
-	/** Muted status of this group **/
-	public var muted(default,set) : Bool;
-
-	public function new(id:Int) {
-		this.id = id;
-		volume = 1;
-		soundGroup = new hxd.snd.SoundGroup("global"+id);
-	}
-
-	/**
-		Set the group volume (0-1)
-	**/
-	public inline function setVolume(v) {
-		volume = M.fclamp(v,0,1);
-		soundGroup.volume = getVolume();
-	}
-
-	/**
-		Return current group volume
-	**/
-	public inline function getVolume() {
-		return muted ? 0 : volume;
-	}
-
-	function set_muted(v) {
-		muted = v;
-		if( v )
-			soundGroup.volume = 0;
-		else
-			soundGroup.volume = volume;
-
-		return v;
-	}
-}
-#end
-
-
 // --- SFX ------------------------------------------------------
 
 class Sfx {
@@ -71,6 +24,7 @@ class Sfx {
 	static var SPATIAL_LISTENER_X = 0.;
 	static var SPATIAL_LISTENER_Y = 0.;
 	static var SPATIAL_LISTENER_RANGE = 1.;
+	static var ON_PLAY_CB : Map<String, Sfx->Void> = new Map();
 	static var SOUND_VOLUMES_OVERRIDE : Map<String,Float> = new Map();
 	static var SOUND_DEFAULT_GROUPS : Map<String,Int> = new Map();
 
@@ -81,6 +35,9 @@ class Sfx {
 	public var sound(default,null) : Sound;
 	public var groupId(default,set) : Int;
 	public var soundGroup(get,never) : Null<SoundGroup>;
+
+	public var identifier(get,never) : String;
+		inline function get_identifier() return sound==null || sound.entry==null ? "?" : sound.entry.path;
 
 
 	/**
@@ -161,19 +118,27 @@ class Sfx {
 	}
 
 	public static function overrideSoundVolume(s:Sfx, newDefaultVolumeMul:Float) {
-		SOUND_VOLUMES_OVERRIDE.set(s.sound.entry.path, newDefaultVolumeMul);
+		SOUND_VOLUMES_OVERRIDE.set(s.identifier, newDefaultVolumeMul);
+	}
+
+	public static function setOnPlayCb(s:Sfx, cb:Sfx->Void) {
+		ON_PLAY_CB.set(s.identifier, cb);
+	}
+
+	public static function removeOnPlayCb(s:Sfx, cb:Sfx->Void) {
+		ON_PLAY_CB.remove(s.identifier);
 	}
 
 	public static function resetOverridenSoundVolume(s:Sfx) {
-		SOUND_VOLUMES_OVERRIDE.remove(s.sound.entry.path);
+		SOUND_VOLUMES_OVERRIDE.remove(s.identifier);
 	}
 
 	public static function setSoundDefaultGroup(s:Sfx, groupId:Int) {
-		SOUND_DEFAULT_GROUPS.set(s.sound.entry.path, groupId);
+		SOUND_DEFAULT_GROUPS.set(s.identifier, groupId);
 	}
 
 	public static function unsetSoundDefaultGroup(s:Sfx) {
-		SOUND_DEFAULT_GROUPS.remove(s.sound.entry.path);
+		SOUND_DEFAULT_GROUPS.remove(s.identifier);
 	}
 
 
@@ -232,6 +197,10 @@ class Sfx {
 
 		}
 		applyVolume();
+
+		// On play global callbacks
+		if( ON_PLAY_CB.exists(identifier) )
+			ON_PLAY_CB.get(identifier)(this);
 	}
 
 	/**
@@ -250,8 +219,8 @@ class Sfx {
 		if( isPlaying() )
 			stop();
 
-		if( SOUND_DEFAULT_GROUPS.exists(sound.entry.path) )
-			groupId = SOUND_DEFAULT_GROUPS.get(sound.entry.path);
+		if( SOUND_DEFAULT_GROUPS.exists(identifier) )
+			groupId = SOUND_DEFAULT_GROUPS.get(identifier);
 		onStartPlaying( sound.play(loop, volume, getGlobalGroup(groupId).soundGroup) );
 		return this;
 	}
@@ -321,6 +290,14 @@ class Sfx {
 		Return final actual volume (a mix of Sfx, spatialization and Group factors)
 	**/
 	public inline function getFinalVolume() {
+		return getMixedVolumeFactor() * volume;
+	}
+
+
+	/**
+		Get the multiplier factor that should be applied to volume value to reflect spatialization and group volumes.
+	**/
+	function getMixedVolumeFactor() {
 		var spatial = 1.0;
 		if( M.isValidNumber(spatialX) && M.isValidNumber(spatialY) ) {
 			var dist = Math.sqrt( (spatialX-SPATIAL_LISTENER_X)*(spatialX-SPATIAL_LISTENER_X) + (spatialY-SPATIAL_LISTENER_Y)*(spatialY-SPATIAL_LISTENER_Y) );
@@ -328,9 +305,9 @@ class Sfx {
 			spatial = f*f*f;
 		}
 
-		final overrideVol : Float = SOUND_VOLUMES_OVERRIDE.exists(sound.entry.path) ? SOUND_VOLUMES_OVERRIDE.get(sound.entry.path) : 1;
+		final overrideVol : Float = SOUND_VOLUMES_OVERRIDE.exists(identifier) ? SOUND_VOLUMES_OVERRIDE.get(identifier) : 1;
 
-		return volume * getGlobalGroup(groupId).getVolume() * spatial * overrideVol;
+		return getGlobalGroup(groupId).getVolume() * spatial * overrideVol;
 	}
 
 	/**
@@ -395,7 +372,7 @@ class Sfx {
 	**/
 	public function fadeTo(vol:Float, duratonS=1.0, ?onComplete:Void->Void) {
 		if( _requiresChannel() )
-			lastChannel.fadeTo(vol, duratonS, onComplete);
+			lastChannel.fadeTo(vol * getMixedVolumeFactor(), duratonS, onComplete);
 		return this;
 	}
 
@@ -493,6 +470,54 @@ class Sfx {
 	}
 	#end
 }
+
+
+
+
+// --- GLOBAL PLAY GROUP ------------------------------------------------------
+#if !macro
+private class GlobalGroup {
+	var id : Int;
+	var volume : Float;
+
+	/** Currently associated Heaps SoundGroup **/
+	public var soundGroup(default,null) : SoundGroup;
+
+	/** Muted status of this group **/
+	public var muted(default,set) : Bool;
+
+	public function new(id:Int) {
+		this.id = id;
+		volume = 1;
+		soundGroup = new hxd.snd.SoundGroup("global"+id);
+	}
+
+	/**
+		Set the group volume (0-1)
+	**/
+	public inline function setVolume(v) {
+		volume = M.fclamp(v,0,1);
+		soundGroup.volume = getVolume();
+	}
+
+	/**
+		Return current group volume
+	**/
+	public inline function getVolume() {
+		return muted ? 0 : volume;
+	}
+
+	function set_muted(v) {
+		muted = v;
+		if( v )
+			soundGroup.volume = 0;
+		else
+			soundGroup.volume = volume;
+
+		return v;
+	}
+}
+#end
 
 
 

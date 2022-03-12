@@ -46,7 +46,19 @@ class MacroTools {
 		return { pos:Context.currentPos(), expr:EConst( CString( Date.now().toString() ) ) }
 	}
 
-	/** Return the compilation date as standard Date string format **/
+	/**
+		Return the compilation timestamp in seconds as standard Date string format
+	**/
+	public static macro function getBuildTimeStampSeconds() {
+		return {
+			pos : Context.currentPos(),
+			expr : EConst(CFloat( Std.string(  haxe.Timer.stamp()  ) )),
+		}
+	}
+
+	/**
+		Return the compilation date as standard Date string format
+	**/
 	public static macro function getRawBuildDate() {
 		return { pos:Context.currentPos(), expr:EConst( CString( Date.now().toString() ) ) }
 	}
@@ -103,6 +115,18 @@ class MacroTools {
 
 
 	#if macro
+
+	/**
+		Return relative path to the `res` folder of Heaps
+	**/
+	public static function getResPath() {
+		var resPath = Context.definedValue("resourcesPath");
+		if( resPath==null )
+			resPath = "res";
+		if( !sys.FileSystem.exists(resPath) )
+			Context.fatalError("Res dir not found: "+resPath, Context.currentPos());
+		return resPath;
+	}
 
 	/**
 	Try to resolve a `hxd.Res` expression (eg. hxd.Res.dir.myFile) to an actual file path (eg. "res/dir/myFile.aseprite").

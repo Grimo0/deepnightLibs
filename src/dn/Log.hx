@@ -75,6 +75,14 @@ class Log {
 		return false;
 	}
 
+	public function countCriticalEntries() {
+		var n = 0;
+		for(e in entries)
+			if( e.critical )
+				n++;
+		return n;
+	}
+
 
 	/**
 		Dump all non-flushed log entries to the corresponding file
@@ -229,6 +237,10 @@ class Log {
 		"debug" => "#ff00ff",
 		"network" => "#9664ff",
 	];
+
+	public dynamic function def(str:String) {
+		add("general", str);
+	}
 
 	public inline function getTagColor(tag:String) : UInt {
 		return tagColors.exists(tag) ? Color.hexToInt(tagColors.get(tag)) : 0xffffff;

@@ -110,6 +110,16 @@ class GetText {
 	}
 
 
+	/**
+		Runs given callback on all keys
+	**/
+	public function fixTranslations( fixCb:(key:String, translation:String)->String ) {
+		for(k in dict.keys())
+			if( dict.get(k)!=null )
+				dict.set( k, fixCb(k, dict.get(k)) );
+	}
+
+
 	static function escapePoString(str:String) {
 		str = Lib.safeEscape(str, '"');
 		str = StringTools.replace(str, "\n", "\\n");
@@ -154,7 +164,7 @@ class GetText {
 					switch vars.expr {
 						case EConst( CIdent("null") ):
 							if( Lambda.count(textVars)>0 )
-								Context.fatalError('Missing variable values', Context.currentPos());
+								Context.fatalError('Missing variable values', vars.pos);
 
 						case EObjectDecl(fields):
 							var fieldVars = new Map();
@@ -328,7 +338,7 @@ class GetText {
 						_error(k, "Missing translation");
 			}
 		}
-		catch(e) {
+		catch(e:Dynamic) {
 			errors.push("EXCEPTION: "+e);
 		}
 		return errors;
@@ -469,7 +479,7 @@ class GetText {
 			if( e.key.indexOf(VDF_ACHIEVEMENT_CONTEXT)>=0 ) {
 				var token = e.key.substr( e.key.indexOf(VDF_ACHIEVEMENT_CONTEXT) + VDF_ACHIEVEMENT_CONTEXT.length );
 				var loc = e.value;
-				allTokens.push('"$token" "$loc"');
+				allTokens.push('"$token" "${sanitizeVdfToken(loc)}"');
 			}
 
 		// Alpha sort
@@ -482,6 +492,10 @@ class GetText {
 		fo.close();
 
 		return true;
+	}
+
+	static function sanitizeVdfToken(str:String) {
+		return StringTools.replace(str, '"', '\\"');
 	}
 
 
@@ -709,7 +723,7 @@ class GetText {
 		}
 
 		function _exploreSheet( idx:String, id:Null<String>, lines:Array<Dynamic>, columns:Array<Array<String>> ){
-			if (lines == null) 
+			if (lines == null)
 				return;
 			var n = 0;
 			var i = 0;

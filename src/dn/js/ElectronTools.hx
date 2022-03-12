@@ -45,6 +45,7 @@ class ElectronTools {
 		IpcMain.handle("setFullScreen", (ev,flag)->setFullScreen(flag));
 		IpcMain.handle("setWindowTitle", (ev,str)->setWindowTitle(str));
 		IpcMain.handle("fatalError", (ev,str)->fatalError(str));
+		IpcMain.handle("showError", (ev,title,str)->showError(title,str));
 
 		// SendSync()/on()
 		IpcMain.on("getScreenWidth", ev->ev.returnValue = getScreenWidth());
@@ -54,8 +55,10 @@ class ElectronTools {
 		IpcMain.on("getRawArgs", ev->ev.returnValue = getRawArgs());
 		IpcMain.on("getAppResourceDir", ev->ev.returnValue = getAppResourceDir());
 		IpcMain.on("getExeDir", ev->ev.returnValue = getExeDir());
+		IpcMain.on("getLogDir", ev->ev.returnValue = getLogDir());
 		IpcMain.on("getUserDataDir", ev->ev.returnValue = getUserDataDir());
 		IpcMain.on("isFullScreen", ev->ev.returnValue = isFullScreen());
+		IpcMain.on("locate", (ev,path,isFile)->ev.returnValue = locate(path,isFile));
 	}
 
 	/** Return TRUE in electron "renderer" process **/
@@ -117,6 +120,10 @@ class ElectronTools {
 	public static function getAppResourceDir() : String
 		return isRenderer() ? IpcRenderer.sendSync("getAppResourceDir") : App.getAppPath();
 
+	/** Get the path to app log files (or create it if missing) **/
+	public static function getLogDir() : String
+		return isRenderer() ? IpcRenderer.sendSync("getLogDir") : App.getPath("logs");
+
 	/** Get the path to the app EXE (Electron itself in debug, or the app executable in packaged versions) **/
 	public static function getExeDir() : String
 		return isRenderer() ? IpcRenderer.sendSync("getExeDir") : App.getPath("exe");
@@ -163,34 +170,45 @@ class ElectronTools {
 		}
 	}
 
+	public static function showError(title:String, err:String) {
+		if( isRenderer() )
+			IpcRenderer.invoke("showError", err);
+		else
+			electron.main.Dialog.showErrorBox(title, err);
+	}
 
 	/** Open system file explorer on target file or dir. Return FALSE if something didn't work. **/
 	public static function locate(path:String, isFile:Bool) : Bool {
 		if( path==null )
 			return false;
 
-		var fp = isFile ? dn.FilePath.fromFile(path) : dn.FilePath.fromDir(path);
+		if( isRenderer() )
+			return IpcRenderer.sendSync("locate", path, isFile);
+		else {
+			var fp = isFile ? dn.FilePath.fromFile(path) : dn.FilePath.fromDir(path);
 
-		if( NodeTools.isWindows() )
-			fp.useBackslashes();
+			if( NodeTools.isWindows() )
+				fp.useBackslashes();
 
-		// Try to open parent folder
-		if( isFile && !NodeTools.fileExists(fp.full) ) {
-			isFile = false;
-			fp.fileWithExt = null;
+			// Try to open parent folder
+			if( isFile && !NodeTools.fileExists(fp.full) ) {
+				isFile = false;
+				fp.fileWithExt = null;
+			}
+
+			// Not found
+			if( !NodeTools.fileExists(fp.full) )
+				return false;
+
+			// Open
+			if( fp.fileWithExt==null )
+				electron.Shell.openPath(fp.full);
+			else
+				electron.Shell.showItemInFolder(fp.full);
+
+			return true;
 		}
 
-		// Not found
-		if( !NodeTools.fileExists(fp.full) )
-			return false;
-
-		// Open
-		if( fp.fileWithExt==null )
-			electron.Shell.openPath(fp.full);
-		else
-			electron.Shell.showItemInFolder(fp.full);
-
-		return true;
 	}
 
 
