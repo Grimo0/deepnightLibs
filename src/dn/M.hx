@@ -814,6 +814,23 @@ class M {
 		}
 	}
 
+	public static inline function groupNumbers(v:Int, sep=" ") : String {
+		var str = Std.string(v);
+		if( str.length<=3 )
+			return str;
+		else {
+			var i = 1;
+			var out = "";
+			while( i<=str.length ) {
+				out = str.substr(-i,1) + out;
+				if( i%3==0 && i<str.length )
+					out = sep+out;
+				i++;
+			}
+			return out;
+		}
+	}
+
 
 	/**
 		Print a signed Integer as binary
@@ -846,10 +863,17 @@ class M {
 	}
 
 	/**
-		Set a SIGNED integer bit to 1 (index starts from 0)
+		Set a SIGNED integer bit to 1 (bit index starts from 0)
 	**/
 	public static inline function setBit(baseValue:Int, bitIdx:Int) : Int {
 		return baseValue | ( 1<<bitIdx );
+	}
+
+	/**
+		Set a SIGNED integer bit to 0 (bit index starts from 0)
+	**/
+	public static inline function unsetBit(baseValue:Int, bitIdx:Int) : Int {
+		return baseValue & ~( 1<<bitIdx );
 	}
 
 	public static function makeBitsFromArray(bools:Array<Bool>) : Int {
@@ -984,13 +1008,29 @@ class M {
 		CiAssert.isTrue( !M.isValidNumber(null) );
 		CiAssert.isTrue( !M.isValidNumber(1/0) );
 
-		// Bit tests
+		// Bit set
 		CiAssert.equals( M.setBit(0,0), 1 );
 		CiAssert.equals( M.setBit(0,3), 8 );
+		CiAssert.equals( M.setBit(16,0), 17 );
+		CiAssert.equals( M.setBit(16,1), 18 );
+
+		// Bit unset
+		CiAssert.equals( M.unsetBit(9,0), 8 );
+		CiAssert.equals( M.unsetBit(9,3), 1 );
+		CiAssert.equals( M.unsetBit(25,0), 24 );
+		CiAssert.equals( M.unsetBit(25,1), 25 );
+		CiAssert.equals( M.unsetBit(25,3), 17 );
+		CiAssert.equals( M.unsetBit(25,4), 9 );
+		CiAssert.equals( M.unsetBit(25,5), 25 );
+		CiAssert.equals( M.unsetBit(1073741824,30), 0 );
+
+		// Bit has
 		CiAssert.isTrue( M.hasBit(1,0) );
 		CiAssert.isTrue( M.hasBit(3,0) );
 		CiAssert.isTrue( M.hasBit(3,1) );
 		CiAssert.isTrue( M.hasBit(1073741824,30) );
+
+
 		var uIntWithBit31 = M.setUnsignedBit(0,31);
 		CiAssert.isTrue( M.hasUnsignedBit(uIntWithBit31,31) );
 		CiAssert.isTrue( uIntWithBit31>0 );

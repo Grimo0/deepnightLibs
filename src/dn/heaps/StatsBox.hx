@@ -36,12 +36,15 @@ class StatsBox extends dn.Process {
 	var anchor : h2d.col.Point;
 	var flow : h2d.Flow;
 	var fps : h2d.Text;
+	var engineInf : h2d.Text;
 	var fpsChart : h2d.Graphics;
 
 	var components : Array<{ f:h2d.Flow, update:(f:h2d.Flow)->Void}> = [];
 
 	var fpsHistory = new haxe.ds.Vector(HISTORY_CHUNK*3);
 	var histCursor = 0;
+
+	public var font : Null<h2d.Font>;
 
 
 	public function new(parent:dn.Process, showFpsChart=true) {
@@ -65,18 +68,32 @@ class StatsBox extends dn.Process {
 		var f = new h2d.Flow(flow);
 		f.layout = Horizontal;
 		f.verticalAlign = Middle;
-		fps = new h2d.Text(hxd.res.DefaultFont.get(), f);
+		fps = new h2d.Text(getFont(), f);
 		fpsChart = new h2d.Graphics(f);
 		fpsChart.visible = showFpsChart;
 
+		engineInf = new h2d.Text(getFont(), flow);
+
 		onResize();
 	}
+
+	inline function getFont() return font==null ? hxd.res.DefaultFont.get() : font;
 
 	public function addComponent( update:(f:h2d.Flow)->Void ) {
 		var f = new h2d.Flow();
 		flow.addChildAt(f,0);
 		f.layout = Horizontal;
 		components.push({ f:f, update:update });
+	}
+
+	public function addText( update:Void->String ) {
+		var f = new h2d.Flow();
+		flow.addChildAt(f,0);
+		f.layout = Horizontal;
+		var tf = new h2d.Text(getFont(), f);
+		components.push({ f:f, update:(_)->{
+			tf.text = update();
+		}});
 	}
 
 	public function removeAllComponents() {
@@ -140,10 +157,13 @@ class StatsBox extends dn.Process {
 			// Display FPS
 			fps.text = Std.string( dn.M.pretty(v, fpsPrecision) );
 
+			// Engine infos
+			engineInf.text = "DC="+engine.drawCalls+"/Trg="+engine.drawTriangles;
+
 			// Draw chart
 			if( fpsChart.visible ) {
 				fpsChart.clear();
-				fpsChart.beginFill( Color.makeColorRgb( 1, M.fclamp(v/targetFps, 0, 1), 0 ), 0.33 );
+				fpsChart.beginFill( dn.legacy.Color.makeColorRgb( 1, M.fclamp(v/targetFps, 0, 1), 0 ), 0.33 );
 				fpsChart.drawRect(0,0,chartWid,chartHei);
 				fpsChart.drawRect(0, chartHei * (1-targetFps/(targetFps*1.1)), chartWid, 1);
 				fpsChart.endFill();
@@ -152,7 +172,7 @@ class StatsBox extends dn.Process {
 					if( i>=histCursor )
 						break;
 
-					fpsChart.lineStyle(1, Color.makeColorRgb( 1, M.fclamp(fpsHistory[i-1]/targetFps, 0, 1), 0 ) );
+					fpsChart.lineStyle(1, dn.legacy.Color.makeColorRgb( 1, M.fclamp(fpsHistory[i-1]/targetFps, 0, 1), 0 ) );
 					fpsChart.moveTo(
 						chartWid * (i-1)/fpsHistory.length,
 						chartHei * (1-fpsHistory[i-1]/(targetFps*1.1))

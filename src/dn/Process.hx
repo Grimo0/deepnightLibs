@@ -348,9 +348,9 @@ class Process {
 	public inline function msToFrames(v:Float) return (v/1000)*getDefaultFrameRate();
 	public inline function framesToMs(v:Float) return 1000*v/getDefaultFrameRate();
 
-	function getDefaultFrameRate() : Float {
+	function getDefaultFrameRate() : Int {
 		#if heaps
-			return hxd.Timer.wantedFPS;
+			return M.round( hxd.Timer.wantedFPS );
 		#elseif flash
 			return flash.Lib.current.stage.frameRate;
 		#else
@@ -665,6 +665,16 @@ class Process {
 		}
 		else
 			RESIZE_REQUESTED = true;
+	}
+
+	/** Request a onResize() call for ALL processes at the end of current frame. **/
+	inline function emitResizeAtEndOfFrame() {
+		resizeAll(false);
+	}
+
+	/** Request a onResize() call for ALL processes immediately. **/
+	inline function emitResizeNow() {
+		resizeAll(true);
 	}
 
 

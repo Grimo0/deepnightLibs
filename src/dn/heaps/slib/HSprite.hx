@@ -71,7 +71,11 @@ class HSprite extends h2d.Drawable implements SpriteInterface {
 	}
 
 	public function setEmptyTexture() {
+		#if debug
 		rawTile = h2d.Tile.fromColor(0x80FF00,4,4);
+		#else
+		rawTile = h2d.Tile.fromColor(0x0,4,4, 0);
+		#end
 	}
 
 	public inline function set( ?l:SpriteLib, ?g:String, ?frame=0, ?stopAllAnims=false ) {
@@ -175,8 +179,8 @@ class HSprite extends h2d.Drawable implements SpriteInterface {
 		return group.frames.length;
 	}
 
-	public inline function colorize(col:UInt, ?alpha=1.0) {
-		color.setColor(dn.Color.addAlphaF(col, alpha));
+	public inline function colorize(col:Col, ?alpha=1.0) {
+		color.setColor(dn.legacy.Color.addAlphaF(col, alpha));
 	}
 	public inline function uncolorize() {
 		color.set(1,1,1,1);
