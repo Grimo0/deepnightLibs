@@ -11,6 +11,9 @@ import dn.heaps.input.Controller;
 class ControllerAccess<T:Int> {
 	public var input(default,null) : Controller<T>;
 
+	public var disableRumble(get,set) : Bool;
+	public var rumbleMultiplicator(get,set) : Float;
+
 	var destroyed(get,never) : Bool;
 	var bindings(get,never) : Map<T, Array< InputBinding<T> >>;
 	var pad(get,never) : hxd.Pad;
@@ -27,6 +30,10 @@ class ControllerAccess<T:Int> {
 	inline function get_destroyed() return input==null || input.destroyed;
 	inline function get_bindings() return destroyed ? null : input.bindings;
 	inline function get_pad() return destroyed ? null : input.pad;
+	inline function get_disableRumble() return destroyed ? false : input.disableRumble;
+	inline function set_disableRumble(v){ if(!destroyed)input.disableRumble = v; return disableRumble; }
+	inline function get_rumbleMultiplicator() return destroyed ? 0 : input.rumbleMultiplicator;
+	inline function set_rumbleMultiplicator(v){ if(!destroyed)input.rumbleMultiplicator = v; return rumbleMultiplicator; }
 
 	/** Current `ControllerDebug` instance, if it exists. This can be created using `createDebugger()` **/
 	public var debugger(default,null) : Null<ControllerDebug<T>>;
@@ -103,15 +110,18 @@ class ControllerAccess<T:Int> {
 	/**
 		Return analog float value (-1.0 to 1.0) associated with given action Enum.
 	**/
-	public function getAnalogValue(action:T) : Float {
-		var out = 0.;
-		if( isActive() && input.bindings.exists(action) )
+	public inline function getAnalogValue(action:T) : Float {
+		if( isActive() && input.bindings.exists(action) ) {
+			var out = 0.;
 			for(b in input.bindings.get(action) ) {
 				out = b.getValue(input.pad);
 				if( out!=0 )
-					return out;
+					break;
 			}
-		return 0;
+			return out;
+		}
+		else
+			return 0;
 	}
 
 
@@ -119,7 +129,7 @@ class ControllerAccess<T:Int> {
 	/**
 		Return analog float value (-1.0 to 1.0) associated with given the 2 action Enum (this implies that these 2 actions refer to the negative/positive directions of the analog).
 	**/
-	public function getAnalogValue2(negativeAction:T, positiveAction:T) : Float {
+	public inline function getAnalogValue2(negativeAction:T, positiveAction:T) : Float {
 		return -M.fabs(getAnalogValue(negativeAction)) + M.fabs(getAnalogValue(positiveAction));
 	}
 
@@ -201,14 +211,12 @@ class ControllerAccess<T:Int> {
 		Return TRUE if given action Enum is "down". For a digital binding, this means the button/key is pushed. For an analog binding, this means it is pushed beyond a specific threshold.
 	**/
 	public function isDown(v:T) : Bool {
-		if( isActive() && bindings.exists(v) )
+		if( isActive() && bindings.exists(v) ) {
 			for(b in bindings.get(v))
-				if( b.isDown(pad) ) {
-					updateHoldStatus(v,true);
+				if( b.isDown(pad) )
 					return true;
-				}
+		}
 
-		updateHoldStatus(v,false);
 		return false;
 	}
 
@@ -217,43 +225,52 @@ class ControllerAccess<T:Int> {
 		Return TRUE if given action Enum is "pressed" (ie. pushed while it was previously released). By definition, this only happens during 1 frame, when control is pushed.
 	**/
 	public function isPressed(v:T) : Bool {
-		if( isActive() && bindings.exists(v) )
+		if( isActive() && bindings.exists(v) ) {
 			for(b in bindings.get(v))
-				if( b.isPressed(pad) ) {
-					updateHoldStatus(v,true);
+				if( b.isPressed(pad) )
 					return true;
-				}
+		}
 
-		updateHoldStatus(v,false);
 		return false;
 	}
 
 
-	public inline function initHeldStatus(action:T) {
-		updateHoldStatus(action, false);
+	public inline function initHeldState(action:T) {
+		if( holdTimeS.exists(action) )
+			holdTimeS.remove( action );
+	}
+
+	/**
+		Update the "held" state of an action.
+
+		NOTE: most of the time, this method shouldn't be required, as the "held" state is automatically updated through calls to `isHeld` and `getHoldRatio`. But in some situations, you might need to manually call this update at the *beginning* of your frames, to ensure the held state is properly updated.
+
+		If in doubt, just call it. You will not break anything doing so.
+	**/
+	public inline function updateHeldState(action:T) {
+		if( !isDown(action) && holdTimeS.exists(action) )
+			holdTimeS.remove( action );
+		else if( isDown(action) && !holdTimeS.exists(action) )
+			holdTimeS.set( action, haxe.Timer.stamp() );
 	}
 
 	/**
 		Return TRUE if given action Enum is "held down" for more than `seconds` seconds.
-		Note: "down" for a digital binding means the button/key is pushed. For an analog binding, this means it is pushed *beyond* a specific threshold.
+
+		WARNING: the method will actually start its internal "held timer" when it will see the action as being down. This means the method should be called continuously for this to happen correctly.
 	**/
 	public inline function isHeld(action:T, seconds:Float) : Bool {
+		updateHeldState(action);
 		if( !isDown(action) )
 			return false;
-
-		if( holdTimeS.get(action)>0 && getHoldTimeS(action) >= seconds ) {
-			holdTimeS.set(action, -1);
-			return true;
+		else {
+			if( holdTimeS.get(action)>0 && getHoldTimeS(action) >= seconds ) {
+				holdTimeS.set(action, -1);
+				return true;
+			}
+			else
+				return false;
 		}
-		else
-			return false;
-	}
-
-	inline function updateHoldStatus(action:T, held:Bool) {
-		if( !held && holdTimeS.exists(action) )
-			holdTimeS.remove( action );
-		else if( held && !holdTimeS.exists(action) )
-			holdTimeS.set( action, haxe.Timer.stamp() );
 	}
 
 	inline function getHoldTimeS(action:T) : Float {
@@ -264,7 +281,7 @@ class ControllerAccess<T:Int> {
 		Return a ratio (float between 0 and 1) representing how long given `action` was held down.
 	**/
 	public inline function getHoldRatio(action:T, seconds:Float) : Float {
-		isDown(action); // will update the held status
+		updateHeldState(action);
 		return !holdTimeS.exists(action)
 			? 0
 			: holdTimeS.get(action)<0
@@ -430,9 +447,8 @@ class ControllerAccess<T:Int> {
 	}
 
 	/** Rumbles physical controller, if supported **/
-	public function rumble(strength:Float, seconds:Float) {
-		if( pad.index>=0 )
-			pad.rumble(strength, seconds);
+	public inline function rumble(strength:Float, seconds:Float) {
+		input.rumble(strength, seconds);
 	}
 
 	/**

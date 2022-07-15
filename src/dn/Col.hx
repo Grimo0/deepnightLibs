@@ -7,7 +7,7 @@ package dn;
 
 import dn.M;
 
-enum abstract ColorEnum(Int) to Col {
+enum abstract ColorEnum(Int) to Int to Col {
 	var Red = 0xff0000;
 	var Green = 0x00ff00;
 	var Blue = 0x0000ff;
@@ -15,6 +15,11 @@ enum abstract ColorEnum(Int) to Col {
 	var White = 0xffffff;
 	var Black = 0x0;
 	var MidGray = 0x808080;
+
+	var ColdLightGray = 0xadb4cc;
+	var ColdMidGray = 0x6a6e80;
+	var WarmLightGray = 0xccc3b8;
+	var WarmMidGray = 0x807a73;
 
 	var Yellow = 0xffcc00;
 	var Pink = 0xff00ff;
@@ -453,6 +458,12 @@ abstract Col(Int) from Int to Int {
 	}
 
 
+	/** Return an interpolated color from min->med->max, using given ratio **/
+	public static inline function graduate(ratio:Float, min:Col, med:Col, max:Col) {
+		return ratio<0.5 ? min.interpolate( med, ratio/0.5 ) : med.interpolate( max, (ratio-0.5)/0.5 );
+	}
+
+
 	/**
 		Return current color teinted to `target`, approximately preserving luminance of original color.
 	**/
@@ -498,6 +509,16 @@ abstract Col(Int) from Int to Int {
 	/** Return a ColorMatrix filter based on current color **/
 	public inline function getColorizeFilterH2d(?ratioNewColor=1.0, ?ratioOldColor:Float) : h2d.filter.ColorMatrix {
 		return new h2d.filter.ColorMatrix( getColorizeMatrixH2d(ratioNewColor, ratioOldColor) );
+	}
+
+	/** Create a `h2d.Bitmap` of the given color **/
+	public static inline function makeBitmap(col:Col, wid:Float, hei:Float, xr=0., yr=0., ?p:h2d.Object) : h2d.Bitmap {
+		var t = h2d.Tile.fromColor(col);
+		t.setCenterRatio(xr,yr);
+		var b = new h2d.Bitmap(t, p);
+		b.scaleX = wid;
+		b.scaleY = hei;
+		return b;
 	}
 	#end
 }
@@ -590,6 +611,11 @@ class UnitTest {
 		c = def; CiAssert.equals( c.toWhite(0.5), 0xff8080 );
 		c = def; CiAssert.equals( c.toWhite(1.0), 0xffffff );
 
+		CiAssert.equals( Col.graduate(0.0, Red, Green, Blue), Red );
+		CiAssert.equals( Col.graduate(0.5, Red, Green, Blue), Green );
+		CiAssert.equals( Col.graduate(1.0, Red, Green, Blue), Blue );
+		CiAssert.equals( Col.graduate(0.25, Red, Green, Blue), 0x808000 );
+
 		// Luminance
 		c = 0x000000; CiAssert.equals( M.pretty(c.luminance,2), 0 );
 		c = 0x808080; CiAssert.equals( M.pretty(c.luminance,2), 0.5 );
@@ -641,6 +667,9 @@ class UnitTest {
 		CiAssert.equals( Col.getAlphaf(0xff112233), 1);
 
 		// Enum
+		CiAssert.equals( Red, 0xff0000 );
+		CiAssert.equals( Green, 0x00ff00 );
+		CiAssert.equals( Blue, 0x0000ff );
 		CiAssert.equals( Col.fromColorEnum(Red), Col.parseHex("#ff0000") );
 		CiAssert.equals( Col.fromColorEnum(Green), Col.parseHex("#00ff00") );
 		CiAssert.equals( Col.fromColorEnum(Blue), Col.parseHex("#0000ff") );

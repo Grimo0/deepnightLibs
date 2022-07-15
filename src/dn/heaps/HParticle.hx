@@ -144,11 +144,18 @@ class Emitter {
 	public var hei : Float;
 	public var cd : dn.Cooldown;
 	public var delayer : dn.Delayer;
+
+	/** If this method is set, it should return TRUE to enable the emitter or FALSE to disable it. **/
 	public var activeCond : Null<Void->Bool>;
+
+	/** Active state of the emitter **/
 	public var active(default,set) : Bool;
 	public var tmod : Float;
 	public var destroyed(default,null) : Bool;
+
+	/** Frequency (in seconds) of the `onUpdate` calls **/
 	public var tickS : Float;
+
 	public var padding : Int;
 
 	public var top(get,never) : Float;  inline function get_top() return y;
@@ -210,7 +217,7 @@ class Emitter {
 			return;
 
 		destroyed = true;
-		cd.destroy();
+		cd.dispose();
 		delayer.destroy();
 		onDispose();
 		activeCond = null;
@@ -226,8 +233,10 @@ class Emitter {
 			cd.update(tmod);
 			delayer.update(tmod);
 
-			if( tickS<=0 || !cd.hasSetS("emitterTick", tickS) )
+			if( tickS<=0 || !cd.has("emitterTick") ) {
 				onUpdate();
+				cd.setS("emitterTick", tickS);
+			}
 
 			if( !permanent && !cd.has("emitterLife") )
 				dispose();
@@ -525,6 +534,19 @@ class HParticle extends BatchElement {
 
 	public inline function colorizeRandom(min:Col, max:Col) {
 		min.interpolate( max, rnd(0,1) ).colorizeH2dBatchElement(this, 1);
+	}
+
+
+	public inline function randFlipXY() {
+		scaleX *= RandomTools.sign();
+		scaleY *= RandomTools.sign();
+	}
+	public inline function randFlipX() scaleX *= RandomTools.sign();
+	public inline function randFlipY() scaleY *= RandomTools.sign();
+	public inline function randRotation() rotation = RandomTools.fullCircle();
+	public inline function randRotationAndFlips() {
+		randFlipXY();
+		randRotation();
 	}
 
 	public inline function delayCallback(cb:HParticle->Void, sec:Float) {
