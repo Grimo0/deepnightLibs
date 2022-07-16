@@ -617,8 +617,8 @@ class Process {
 		// Tools
 		p.delayer.destroy();
 		p.udelayer.destroy();
-		p.cd.destroy();
-		p.ucd.destroy();
+		p.cd.dispose();
+		p.ucd.dispose();
 		p.tw.destroy();
 
 		// Clean up
