@@ -31,6 +31,8 @@ abstract Col(Int) from Int to Int {
 		this = rgb;
 	}
 
+	public inline function clone() return new Col(this);
+
 	/** Create a random color using HSL **/
 	public static inline function randomHSL(?hue:Float, ?sat:Float, ?lum:Float) : Col {
 		return fromHsl(
@@ -321,6 +323,16 @@ abstract Col(Int) from Int to Int {
 	/** Get alpha channel as Float **/
 	public static inline function getAlphaf(c:Col) : Float {
 		return c.af;
+	}
+
+
+	/** Return a variation of this color using HSL **/
+	public inline function adjustHsl(deltaH:Float, deltaS:Float, deltaL:Float) : Col {
+		var c = clone();
+		c.hue += deltaH;
+		c.saturation += deltaS;
+		c.lightness += deltaL;
+		return c;
 	}
 
 
