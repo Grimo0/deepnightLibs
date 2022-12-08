@@ -301,7 +301,7 @@ class Controller<T:Int> {
 
 	public var disableRumble : Bool = false;
 	public var rumbleMultiplicator : Float = 1;
-	
+
 	/** Rumbles physical controller, if supported **/
 	public inline function rumble(strength:Float, seconds:Float) {
 		if( pad.index>=0 && !disableRumble)

@@ -39,7 +39,17 @@ class FixedArray<T> {
 
 	@:keep
 	public function toString() {
-		return (name==null?"FixedArray":name) + ' $allocated / $maxSize';
+		var a = [];
+		for(e in this)
+			a.push(e);
+		return a.toString() + '<$allocated/$maxSize>';
+	}
+
+	public function mapToArray<X>(cb:T->X) : Array<X> {
+		var out = [];
+		for(e in this)
+			out.push( cb(e) );
+		return out;
 	}
 
 	/** Print FixedArray content as a String. WARNING: this operation is slow & generates lots of allocations! Only use for debug purpose. **/
@@ -54,6 +64,21 @@ class FixedArray<T> {
 	/** Get value at given index, or null if out of bounds **/
 	public inline function get(idx:Int) : Null<T> {
 		return idx<0 || idx>=nalloc ? null : values[idx];
+	}
+
+	public inline function pickRandom(?rndFunc:Int->Int, removeAfterPick=false) : Null<T> {
+		if( allocated==0 )
+			return null;
+		else {
+			var idx = (rndFunc==null?Std.random:rndFunc)(allocated);
+			if( removeAfterPick ) {
+				var e = get(idx);
+				removeIndex(idx);
+				return e;
+			}
+			else
+				return get(idx);
+		}
 	}
 
 	/** Set value at given index. This throws an error if the index is above allocated count. **/
@@ -141,6 +166,18 @@ class FixedArray<T> {
 	public function dispose() {
 		values = null;
 		nalloc = 0;
+	}
+
+	public function bubbleSort(weight:T->Float) {
+		var tmp : T = null;
+		for(i in 0...allocated-1)
+		for(j in i+1...allocated) {
+			if( weight(get(i)) > weight(get(j)) ) {
+				tmp = get(i);
+				set(i, get(j));
+				set(j, tmp);
+			}
+		}
 	}
 
 

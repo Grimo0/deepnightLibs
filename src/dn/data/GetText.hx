@@ -351,11 +351,26 @@ class GetText {
 	 *******************************************************************************/
 
 	#if( sys && !macro )
-	static var SRC_REG = ~/\._\(\s*["]((\\["]|[^"])+)["]/i;
+	static var SRC_REG = ~/\._\(\s*"((\\"|[^"])+)"/i;
+
+
+	@:noCompletion
+	@:deprecated("doParseGlobal() isn't supported anymore. Please use appropriate separate parseXXX() methods, followed by writePOT(). ")
+	public static function doParseGlobal(o:Dynamic) {
+		throw "Not supported anymore";
+		return null;
+	};
+
+	static inline function concatEntries(cur:Array<PoEntry>, to:Array<PoEntry>) {
+		if( cur!=null && to!=null )
+			for(e in to)
+				cur.push(e);
+	}
+
 	/**
 		Parse HX files
 	**/
-	public static function parseSourceCode(dir:String) : Array<PoEntry> {
+	public static function parseSourceCode(?appendToEntries:Array<PoEntry>, dir:String) : Array<PoEntry> {
 		if( VERBOSE ) Lib.println('');
 		if( !sys.FileSystem.exists(dir) ) {
 			error(dir, "Folder not found");
@@ -379,6 +394,8 @@ class GetText {
 			if( n>0 && VERBOSE )
 				Lib.println('  - $file, $n entrie(s)');
 		}
+
+		concatEntries(appendToEntries, all);
 		return all;
 	}
 
@@ -387,7 +404,7 @@ class GetText {
 	/**
 		Extract Steam achievements titles and descriptions from a VDF file (as downloaded from your Steam app "Achievement localization" section).
 	**/
-	public static function parseAchievementsVdf(filePath:String) {
+	public static function parseAchievementsVdf(?appendToEntries:Array<PoEntry>, filePath:String) {
 		if( VERBOSE ) Lib.println('');
 
 		// Check file
@@ -430,6 +447,7 @@ class GetText {
 			raw = tokenReg.matchedRight();
 		}
 
+		concatEntries(appendToEntries, all);
 		return all;
 	}
 
@@ -507,7 +525,7 @@ class GetText {
 		The section regex can be overridden by using the `sectionReg` parameter.
 
 	**/
-	public static function parseTextSections(filePath:String, ?sectionReg:EReg) {
+	public static function parseTextSections(?appendToEntries:Array<PoEntry>, filePath:String, ?sectionReg:EReg) {
 		if( VERBOSE ) Lib.println('');
 
 		// Default section regex
@@ -557,6 +575,7 @@ class GetText {
 		if( entryLines.length>0 )
 			_addEntry(lastId, entryLines);
 
+		concatEntries(appendToEntries, all);
 		return all;
 	}
 
@@ -565,7 +584,7 @@ class GetText {
 	/**
 		Parse LDtk
 	**/
-	public static function parseLdtk(filePath:String, options:LdtkOptions) {
+	public static function parseLdtk(?appendToEntries:Array<PoEntry>, filePath:String, options:LdtkOptions) : Array<PoEntry> {
 		if( VERBOSE ) Lib.println('');
 		if( !sys.FileSystem.exists(filePath) ) {
 			error(filePath, "File not found");
@@ -673,6 +692,7 @@ class GetText {
 			}
 		}
 
+		concatEntries(appendToEntries, all);
 		return all;
 	}
 	static inline function jsonArray(arr:Dynamic) : Array<Dynamic> {
@@ -694,7 +714,7 @@ class GetText {
 	/**
 		Parse a CastleDB file and extract Texts that were flagged as "Localizable".
 	**/
-	public static function parseCastleDB(filePath:String, globalComment="CastleDB") {
+	public static function parseCastleDB(?appendToEntries:Array<PoEntry>, filePath:String, globalComment="CastleDB") {
 		if( VERBOSE ) Lib.println('');
 		if( !sys.FileSystem.exists(filePath) ) {
 			error(filePath, "File not found");
@@ -767,6 +787,7 @@ class GetText {
 			_exploreSheet( filePath+":"+sheet.name, "", sheet.lines, sColumns );
 		}
 
+		concatEntries(appendToEntries, all);
 		return all;
 	}
 	#end // end of castle
@@ -857,6 +878,7 @@ class GetText {
 		}
 
 		// Write file
+		Lib.println('Writing ${potPath.fileWithExt}...');
 		var fo = sys.io.File.write(potPath.full, false);
 		fo.writeString(lines.join("\n"));
 		fo.close();

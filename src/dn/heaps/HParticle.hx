@@ -110,8 +110,10 @@ class ParticlePool {
 	public inline function killAll() clear();
 
 	public inline function killAllWithFade() {
-		for( i in 0...nalloc)
+		for( i in 0...nalloc) {
 			all[i].lifeS = 0;
+			all[i].fadeOutSpeed = M.fmax(all[i].fadeOutSpeed, 0.03);
+		}
 	}
 
 	public function dispose() {
@@ -377,6 +379,11 @@ class HParticle extends BatchElement {
 		applyAnimFrame();
 	}
 
+	public inline function randomizeAnimCursor() {
+		animCursor = irnd(0, animLib.getAnim(animId).length-1);
+		applyAnimFrame();
+	}
+
 
 	public inline function setScale(v:Float) scale = v;
 	public inline function setPosition(x:Float, y:Float) {
@@ -393,6 +400,15 @@ class HParticle extends BatchElement {
 		this.t.dy = tile.dy;
 		this.t.switchTexture(tile);
 	}
+
+	public inline function isSet0() return !Math.isNaN(data0);
+	public inline function isSet1() return !Math.isNaN(data1);
+	public inline function isSet2() return !Math.isNaN(data2);
+	public inline function isSet3() return !Math.isNaN(data3);
+	public inline function isSet4() return !Math.isNaN(data4);
+	public inline function isSet5() return !Math.isNaN(data5);
+	public inline function isSet6() return !Math.isNaN(data6);
+	public inline function isSet7() return !Math.isNaN(data7);
 
 	public inline function initIfNull0(v:Float) if( Math.isNaN(data0) ) data0 = v;
 	public inline function initIfNull1(v:Float) if( Math.isNaN(data1) ) data1 = v;
@@ -664,6 +680,15 @@ class HParticle extends BatchElement {
 		}
 	}
 
+	public inline function fadeOutAndKill(fadeOutDurationS:Float) {
+		if( fadeOutDurationS<=0 )
+			kill();
+		else {
+			lifeS = 0;
+			fadeOutSpeed = alpha / (fadeOutDurationS*fps);
+		}
+	}
+
 	/** Lower life to 0 and start fading out **/
 	public inline function timeoutNow() {
 		rLifeF = 0;
@@ -790,6 +815,8 @@ class HParticle extends BatchElement {
 
 				// Ground
 				if( groundY!=null && dy>0 && y>=groundY ) {
+					if( bounceMul==0 )
+						gy = 0;
 					dy = -dy*bounceMul;
 					y = groundY-1;
 					if( onBounce!=null )

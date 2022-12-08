@@ -3,8 +3,6 @@ package dn.heaps;
 import dn.Col;
 
 class Chart extends dn.Process {
-	public static var DEFAULT_SAMPLE_COUNT = 100;
-
 	public var wid(default,set) : Int;
 	public var hei(default,set) : Int;
 	public var color(default,set) : Col;
@@ -33,6 +31,7 @@ class Chart extends dn.Process {
 	var autoPlotter : Null<Void->Float>;
 	var lastPlotTimeS = -1.;
 	var avgValuePerSec = 0.;
+	var autoMoreInfos : Null<Void->String>;
 
 	var history : haxe.ds.Vector<Float>;
 	var curHistIdx = 0;
@@ -51,7 +50,7 @@ class Chart extends dn.Process {
 		createRootInLayers(p.root, 99999);
 		wid = 150;
 		hei = 32;
-		setMaxSamples(DEFAULT_SAMPLE_COUNT);
+		setMaxSamples(100);
 	}
 
 	public function disableTexts() {
@@ -164,6 +163,7 @@ class Chart extends dn.Process {
 	inline function printValue() {
 		if( showTexts ) {
 			valueTf.text = valuePrinter( showValuePerSec ? avgValuePerSec : history[curHistIdx-1], precision );
+			if(autoMoreInfos != null) valueTf.text += (try " "+autoMoreInfos() catch(_) "");
 			valueTf.y = labelTf.y;
 		}
 	}
@@ -179,6 +179,7 @@ class Chart extends dn.Process {
 			cur = pixelPool[i];
 			cur.x = getX(i);
 			cur.y = getY(history[i]);
+			cur.scaleX = M.ceil(wid/history.length);
 			cur.scaleY = zero-cur.y;
 			cur.visible = true;
 		}
@@ -213,6 +214,7 @@ class Chart extends dn.Process {
 		be.visible = true;
 		be.x = getX(curHistIdx);
 		be.y = getY(v);
+		be.scaleX = M.ceil(wid/history.length);
 		be.scaleY = getY(0)-be.y;
 
 		curHistIdx++;
@@ -256,6 +258,10 @@ class Chart extends dn.Process {
 	public function autoPlot( valueGetter:Void->Float, freqS:Float ) {
 		this.freqS = freqS;
 		autoPlotter = valueGetter;
+	}
+
+	public function autoMoreInf( valueGetter:Void->String) {
+		autoMoreInfos = valueGetter;
 	}
 
 	inline function getX(idx:Int) return M.round( idx/history.length * wid );

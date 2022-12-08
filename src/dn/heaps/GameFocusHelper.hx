@@ -8,6 +8,10 @@ class GameFocusHelper extends dn.Process {
     var showIntro = false;
     var thumb : h2d.Tile;
 
+    #if js
+    var jsFocus = false;
+    #end
+
     public function new(s:h2d.Scene, font:h2d.Font, ?thumb:h2d.Tile) {
         super();
 
@@ -20,6 +24,14 @@ class GameFocusHelper extends dn.Process {
         #if (js && !nodejs)
         showIntro = true;
         suspendGame();
+        var doc = js.Browser.document;
+        function _checkTouch(ev:js.html.Event) {
+            var jsCanvas = @:privateAccess hxd.Window.getInstance().canvas;
+            var te : js.html.Element = cast ev.target;
+            jsFocus = jsCanvas.isSameNode(te);
+        }
+        doc.addEventListener("touchstart", _checkTouch);
+        doc.addEventListener("click", _checkTouch);
         #else
         if( !isFocused() ) {
             showIntro = true;
@@ -32,21 +44,27 @@ class GameFocusHelper extends dn.Process {
         // #end
     }
 
-    public static function isUseful() {
-        return switch hxd.System.platform {
-            case WebGL:
-                #if js
-                    var mobileReg = ~/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/gi;
-                    return !mobileReg.match( js.Browser.navigator.userAgent );
-                #else
-                    false;
-                #end
+    static function isMobile() {
+        #if js
+            var mobileReg = ~/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/gi;
+            return mobileReg.match( js.Browser.navigator.userAgent );
+        #else
+            return false;
+        #end
+    }
 
+    public static function isUseful() {
+        #if js
+        return !isMobile();
+        #else
+        return switch hxd.System.platform {
+            case WebGL: !isMobile();
             case IOS, Android: false;
             case PC: false;
             case Console: false;
             case FlashPlayer: true;
         }
+        #end
     }
 
     function suspendGame() {
@@ -142,6 +160,8 @@ class GameFocusHelper extends dn.Process {
     inline function isFocused() {
         #if (flash || nodejs)
         return true;
+        #elseif js
+        return jsFocus;
         #else
         var w = hxd.Window.getInstance();
         return w.isFocused;

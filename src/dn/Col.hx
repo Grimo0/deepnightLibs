@@ -21,6 +21,7 @@ enum abstract ColorEnum(Int) to Int to Col {
 	var WarmLightGray = 0xccc3b8;
 	var WarmMidGray = 0x807a73;
 
+	var Orange = 0xff8800;
 	var Yellow = 0xffcc00;
 	var Pink = 0xff00ff;
 	var Lime = 0xCAFF00;
@@ -142,7 +143,7 @@ abstract Col(Int) from Int to Int {
 	}
 
 	static function _parseAndInlineHex(hex:String, pos:haxe.macro.Expr.Position) : Int {
-		var colInt = parseHex(hex);
+		var colInt = try parseHex(hex) catch(_) haxe.macro.Context.fatalError("Malformed hex color", pos);
 		if( colInt==-1 )
 			haxe.macro.Context.fatalError("Malformed color code (expected: #rrggbb, #rgb or #v)", pos);
 		return colInt;
@@ -361,6 +362,41 @@ abstract Col(Int) from Int to Int {
 		inline function set_af(af:Float) { this = fromRGBf(rf, gf, bf, af); return af; }
 
 
+	/** Return some approximate RGB distance (0-1) between current color and another one **/
+	public inline function getDistanceRgb(target:Col) : Float {
+		return ( M.fabs(target.rf-rf) + M.fabs(target.gf-gf) + M.fabs(target.bf-bf) ) / 3;
+	}
+
+
+
+
+	public inline function toLab() : dn.struct.FixedArray<Float> {
+		var r = (rf > 0.04045) ? Math.pow((rf + 0.055) / 1.055, 2.4) : rf / 12.92;
+		var g = (gf > 0.04045) ? Math.pow((gf + 0.055) / 1.055, 2.4) : gf / 12.92;
+		var b = (bf > 0.04045) ? Math.pow((bf + 0.055) / 1.055, 2.4) : bf / 12.92;
+
+		var x = (r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.95047;
+		var y = (r * 0.2126 + g * 0.7152 + b * 0.0722) / 1.00000;
+		var z = (r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883;
+
+		x = (x > 0.008856) ? Math.pow(x, 1/3) : (7.787 * x) + 16/116;
+		y = (y > 0.008856) ? Math.pow(y, 1/3) : (7.787 * y) + 16/116;
+		z = (z > 0.008856) ? Math.pow(z, 1/3) : (7.787 * z) + 16/116;
+
+		var lab = new dn.struct.FixedArray(3);
+		lab.push( (116*y) - 16 );
+		lab.push( 500*(x-y) );
+		lab.push( 200*(y-z) );
+		return lab;
+	}
+
+
+	public inline function getDistanceLab(target:Col) : Float {
+		var from = toLab();
+		var to = target.toLab();
+		return Math.sqrt( M.pow(from.get(0)-to.get(0), 2)  +  M.pow(from.get(1)-to.get(1), 2)  +  M.pow(from.get(2)-to.get(2), 2) );
+	}
+
 	/** Return color with given alpha (0-1) **/
 	public inline function withAlpha(a:Float) : Col {
 		return M.round(a*255) << 24 | withoutAlpha();
@@ -448,9 +484,7 @@ abstract Col(Int) from Int to Int {
 	}
 
 
-
-
-	/** Hue value (from HSL format) **/
+	/** Hue value (0-1, from HSL format) **/
 	public var hue(get,set) : Float;
 	inline function get_hue() {
 		var max = rf>=gf && rf>=bf ? rf : gf>=bf ? gf : bf;
@@ -476,7 +510,7 @@ abstract Col(Int) from Int to Int {
 	}
 
 
-	/** Saturation value (from HSL format) **/
+	/** Saturation value (0-1, from HSL format) **/
 	public var saturation(get,set) : Float;
 	inline function get_saturation() {
 		var r = rf;
@@ -494,7 +528,7 @@ abstract Col(Int) from Int to Int {
 	}
 
 
-	/** Lightness value (from HSL format) **/
+	/** Lightness value (0-1, from HSL format) **/
 	public var lightness(get,set) : Float;
 	inline function get_lightness() {
 		var r = rf;
