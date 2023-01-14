@@ -113,7 +113,7 @@ abstract Col(Int) from Int to Int {
 	/** Create a color from HSL (0-1.0) values **/
 	public static inline function fromHsl(h:Float, s:Float, l:Float) : Col {
 		if( s==0 )
-			return Col.gray(h);
+			return Col.gray(l);
 		else {
 			h*=6;
 			var i = M.floor(h);
@@ -214,7 +214,7 @@ abstract Col(Int) from Int to Int {
 	**/
 	@:from public static macro function inlineHex(e:haxe.macro.Expr.ExprOf<String>) : ExprOf<Col> {
 		_inlineBlockExpr(e);
-		return macro cast($e, Col);
+		return macro cast($e, dn.Col);
 	}
 
 
@@ -226,6 +226,10 @@ abstract Col(Int) from Int to Int {
 		return c.toHex(true);
 	}
 
+	/** Return a "rgb(r,g,b,a)" string suitable for CSS **/
+	public inline function toCssRgba(alphaOverride=-1.) : String {
+		return 'rgba($ri, $gi, $bi, ${alphaOverride<0 ? ai : alphaOverride})';
+	}
 
 	/** Explicit Int cast **/
 	public inline function toInt() : Int {

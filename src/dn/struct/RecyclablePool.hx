@@ -40,6 +40,13 @@ class RecyclablePool<T:Recyclable> {
 		return 'RecyclablePool($allocated/$maxSize)';
 	}
 
+	function debugContent() {
+		var idx = 0;
+		return toString() + " => " + pool.map((v:T)->{
+			return (idx++)<nalloc ? Std.string(v) : '{deleted:$v}';
+		});
+	}
+
 	/**
 		Return the expected object at given index.
 		"Expected" means that this method will return `null` if the index is out of the *currently allocated* bounds.
@@ -74,11 +81,38 @@ class RecyclablePool<T:Recyclable> {
 		Its `recycle()` method is automatically called.
 	**/
 	public inline function alloc() : T {
-		if( nalloc>=size )
-			throw 'RecyclablePool limit reached ($maxSize)';
+		if( nalloc>=size ) {
+			garbageCollectNow();
+			if( nalloc>=size )
+				throw 'RecyclablePool limit reached ($maxSize)';
+		}
 		var e = pool[nalloc++];
 		e.recycle();
 		return e;
+	}
+
+
+	/**
+		If `alloc()` is called and no value is left, as a last chance, this custom method is ran on all allocated values to try to free some of them.
+		This function should return TRUE if the given element can be freed safely.
+	**/
+	public dynamic function canBeGarbageCollected(v:T) : Bool {
+		return false;
+	}
+
+
+	/**
+		Force the custom garbage collector to run, and free all values where `canBeGarbageCollected(v)` returns TRUE.
+		This is automatically called by `alloc()` when there is no free element left.
+	 **/
+	public function garbageCollectNow() {
+		var i = 0;
+		while( i<nalloc ) {
+			if( canBeGarbageCollected( get(i) ) )
+				freeIndex(i);
+			else
+				i++;
+		}
 	}
 
 	/** Free all pool **/
@@ -89,14 +123,17 @@ class RecyclablePool<T:Recyclable> {
 	/** Free value at given array index **/
 	public inline function freeIndex(i:Int) {
 		if( i>=0 && i<nalloc ) {
-			if( nalloc>1 ) {
+			if( i==nalloc-1 ) {
+				// Free last one => just reduce length
+				nalloc--;
+			}
+			else {
+				// Swap removed value
 				var tmp = pool[i];
 				pool[i] = pool[nalloc-1];
 				pool[nalloc-1] = tmp;
 				nalloc--;
 			}
-			else
-				nalloc = 0;
 		}
 	}
 
@@ -119,7 +156,7 @@ class RecyclablePool<T:Recyclable> {
 	public static function __test() {
 		// Init
 		var i = 0;
-		var p : RecyclablePool<TestObject> = new RecyclablePool(3, ()->new TestObject(i++));
+		var p : RecyclablePool<UnitTestObject> = new RecyclablePool(3, ()->new UnitTestObject(i++));
 		CiAssert.equals( p.allocated, 0 );
 		CiAssert.equals( p.maxSize, 3 );
 		CiAssert.equals( p.get(0), null );
@@ -141,12 +178,16 @@ class RecyclablePool<T:Recyclable> {
 		CiAssert.equals( { p.freeElement(e); p.allocated; }, 0 );
 		CiAssert.equals( p.get(0), null );
 		CiAssert.equals( { p.alloc(); p.allocated; }, 1 );
-		CiAssert.equals( { p.freeIndex(1); p.allocated; }, 1 );
+		CiAssert.equals( { p.alloc(); p.allocated; }, 2 );
+		CiAssert.equals( { p.alloc(); p.allocated; }, 3 );
+		CiAssert.equals( { p.freeIndex(1); p.allocated; }, 2 );
+		CiAssert.equals( { p.freeIndex(0); p.allocated; }, 1 );
+		CiAssert.equals( { p.freeIndex(3); p.allocated; }, 1 ); // out of bounds
 		CiAssert.equals( { p.freeIndex(0); p.allocated; }, 0 );
 
 		// Check pointers
 		var i = 0;
-		var p = new RecyclablePool(10, ()->new TestObject(i++));
+		var p = new RecyclablePool(10, ()->new UnitTestObject(i++));
 		for(i in 0...1000) {
 			if( p.allocated<p.maxSize )
 				p.alloc();
@@ -156,15 +197,39 @@ class RecyclablePool<T:Recyclable> {
 		for(i in 0...p.maxSize)
 		for(j in i+1...p.maxSize)
 			CiAssert.isTrue( p.getUnsafe(i)!=p.getUnsafe(j) );
+
+
+		// Garbage collector
+		var i = 0;
+		var p : RecyclablePool<UnitTestObject> = new RecyclablePool(3, ()->new UnitTestObject(i++));
+		p.canBeGarbageCollected = (e)->return e.value<100;
+		CiAssert.equals( p.allocated, 0 );
+		p.alloc().value=10;
+		p.alloc().value=500;
+		p.alloc().value=20;
+		CiAssert.equals( p.allocated, 3 );
+		// Manual GC
+		p.garbageCollectNow();
+		CiAssert.equals( p.allocated, 1 );
+		// Auto GC
+		p.alloc().value=10;
+		p.alloc().value=20;
+		CiAssert.equals( p.allocated, 3 );
+		p.alloc().value=30;
+		CiAssert.equals( p.allocated, 2 );
+
 	}
 }
 
-private class TestObject {
+
+
+private class UnitTestObject {
 	var id : Int;
 	public var value : Int;
 
 	public function new(id) {
 		this.id = id;
+		value = -1;
 	}
 
 	@:keep
